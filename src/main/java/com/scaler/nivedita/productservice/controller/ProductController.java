@@ -1,8 +1,11 @@
 package com.scaler.nivedita.productservice.controller;
 
+import com.scaler.nivedita.productservice.authCommons.AuthenticationCommons;
 import com.scaler.nivedita.productservice.dto.CreateProductRequestDTO;
+import com.scaler.nivedita.productservice.dto.UserDTO;
 import com.scaler.nivedita.productservice.exception.CategoryNotFoundException;
 import com.scaler.nivedita.productservice.exception.ProductNotFoundException;
+import com.scaler.nivedita.productservice.exception.UserNotAuthorisedException;
 import com.scaler.nivedita.productservice.model.Product;
 import com.scaler.nivedita.productservice.service.ProductService;
 import com.scaler.nivedita.productservice.dto.ProductResponseDTO;
@@ -11,8 +14,8 @@ import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -21,8 +24,10 @@ import java.util.List;
 @RestController
 public class ProductController {
     private ProductService productService;
-    public ProductController(@Qualifier("selfProductService") ProductService productService){
+    private AuthenticationCommons authenticationCommons;
+    public ProductController(@Qualifier("selfProductService") ProductService productService,AuthenticationCommons authenticationCommons){
         this.productService = productService;
+        this.authenticationCommons = authenticationCommons;
     }
     @Cacheable(value = "product")
     @GetMapping("/products")
@@ -36,14 +41,18 @@ public class ProductController {
     }
     @Cacheable(value = "product")
     @GetMapping("/products/{id}")
-    public ProductResponseDTO getProductById(@PathVariable("id") Integer id) throws ProductNotFoundException {
+    public ProductResponseDTO getProductById(@PathVariable("id") Integer id,@RequestHeader String authenticationToken) throws ProductNotFoundException, UserNotAuthorisedException {
+        UserDTO userDTO = authenticationCommons.validateToken(authenticationToken);
+        if(userDTO==null){
+            throw new UserNotAuthorisedException("user has to login");
+        }
         Product product = productService.getProductById(id);
         if(product==null){
             throw new ProductNotFoundException("product does not exist");
             //return new ResponseEntity<>(null, HttpStatus.NO_CONTENT);
         }
-        ProductResponseDTO response = convertProductToResponseDTO(product);
-        return response;
+        ProductResponseDTO responseDTO = convertProductToResponseDTO(product);
+        return responseDTO;
     }
 
     private ProductResponseDTO convertProductToResponseDTO(Product product) {
